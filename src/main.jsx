@@ -20,6 +20,16 @@ function App() {
     valor_servico: ''
   });
 
+  // Altera o nome do arquivo/aba quando o contrato é aberto
+  useEffect(() => {
+    if (contratoAtivo) {
+      document.title = `Contrato Transporte - ${contratoAtivo.nome_aluno}`;
+    } else {
+      document.title = "Transporte VIP Spin";
+    }
+  }, [contratoAtivo]);
+  
+
   const buscarAlunos = async () => {
     const { data } = await supabase.from('alunos').select('*').order('nome_aluno');
     if (data) setAlunos(data);
@@ -42,23 +52,51 @@ function App() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    let res;
+  e.preventDefault();
+  setLoading(true);
+  let res;
+
+  if (editingId) {
+    res = await supabase.from('alunos').update(formData).eq('nome_aluno', editingId);
+  } else {
+    res = await supabase.from('alunos').insert([formData]);
+  }
+
+  setLoading(false);
+
+  if (!res.error) {
     if (editingId) {
-      res = await supabase.from('alunos').update(formData).eq('nome_aluno', editingId);
+      setEditingId(null);
+      setView('admin');
+      buscarAlunos();
     } else {
-      res = await supabase.from('alunos').insert([formData]);
+      // 1. Salva os dados para o contrato funcionar na tela de sucesso
+      setContratoAtivo(formData);
+      
+      // 2. Ativa a tela de sucesso (onde o botão de contrato aparece)
+      setEnviado(true);
+
+      // 3. O RESET: Limpa o formulário para o próximo cadastro
+      setFormData({
+        nome_aluno: '',
+        responsavel: '',
+        telefone: '',
+        endereco_casa: '',
+        endereco_escola: '',
+        horario_entrada: '',
+        horario_saida: '',
+        valor_servico: '',
+        turno: ''
+      });
+      
+      // 4. Garante que o iPhone volte para o topo para ver a mensagem de sucesso
+      window.scrollTo(0, 0);
     }
-    setLoading(false);
-    if (!res.error) {
-      alert(editingId ? "Atualizado com sucesso!" : "Cadastrado com sucesso!");
-      setEditingId(null); 
-      if (editingId) { setView('admin'); buscarAlunos(); } else { setEnviado(true); }
-    } else {
-      alert("Erro: " + res.error.message);
-    }
-  };
+  } else {
+    alert("Erro: " + res.error.message);
+  }
+};
+
 
   const excluirAluno = async (nome) => {
     if(confirm(`Excluir ${nome}?`)) {
@@ -73,11 +111,10 @@ function App() {
     window.open(`https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
- // TELA DE CONTRATO COM ASSINATURA DO CONTRATADO
-  if (contratoAtivo) {
+  // TELA DE CONTRATO (MANTIDA ORIGINAL)
+  if (contratoAtivo && !enviado) {
     return (
       <div className="min-h-screen bg-zinc-50 py-10 print:bg-white print:py-0 font-serif text-zinc-900">
-        {/* Importando uma fonte de assinatura apenas para esta tela */}
         <style>
           {`
             @import url('https://fonts.googleapis.com/css2?family=Mrs+Saint+Delafield&display=swap');
@@ -102,7 +139,7 @@ function App() {
             </div>
           </div>
 
-          <h2 className="text-center text-xl font-bold uppercase mb-10 underline underline-offset-4">Instrumento Particular de Contrato de Transporte</h2>
+          <h2 className="text-center text-xl font-bold uppercase mb-10 underline underline-offset-4 text-zinc-800">Instrumento Particular de Contrato de Transporte</h2>
 
           <div className="space-y-6 text-[13px] leading-relaxed text-justify">
             <p><strong>1. DAS PARTES:</strong></p>
@@ -121,17 +158,14 @@ function App() {
             <p><strong>4. REGRAS:</strong> O tempo de espera máximo no local de embarque é de 05 minutos.</p>
 
             <div className="mt-24 grid grid-cols-2 gap-20 pt-10">
-              {/* ASSINATURA JÁ PREENCHIDA DO CONTRATADO */}
               <div className="text-center border-t border-zinc-900 relative pt-4">
-                <span className="signature-font absolute -top-8 left-0 right-0 text-zinc-700"></span>
-                <p className="font-bold text-[10px] uppercase">NILMA DO SOCORRO DUTRA MUNIZ</p>
-                <p className="text-[8px] text-zinc-400 uppercase">Contratado</p>
+                <p className="font-bold text-[10px] uppercase italic text-zinc-800">NILMA DO SOCORRO DUTRA MUNIZ</p>
+                <p className="text-[8px] text-zinc-400 uppercase italic">Contratado</p>
               </div>
 
-              {/* CAMPO VAZIO PARA O PAI/MÃE ASSINAR */}
               <div className="text-center border-t border-zinc-900 pt-4">
-                <p className="font-bold text-[10px] uppercase">{contratoAtivo.responsavel}</p>
-                <p className="text-[8px] text-zinc-400 uppercase">Contratante</p>
+                <p className="font-bold text-[10px] uppercase italic text-zinc-800">{contratoAtivo.responsavel}</p>
+                <p className="text-[8px] text-zinc-400 uppercase italic">Contratante</p>
               </div>
             </div>
           </div>
@@ -140,12 +174,31 @@ function App() {
     );
   }
 
+  // TELA DE SUCESSO (MELHORADA COM BOTÕES)
   if (enviado) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-100 italic font-black uppercase">
-        <div className="bg-white p-12 rounded-[4rem] shadow-2xl text-center border-b-[12px] border-yellow-400">
-          <h2 className="text-3xl">Sucesso!</h2>
-          <button onClick={() => {setEnviado(false); setView('cadastro');}} className="mt-8 bg-zinc-900 text-white px-10 py-4 rounded-2xl text-xs">Novo Cadastro</button>
+      <div className="min-h-screen flex items-center justify-center bg-zinc-100 p-6">
+        <div className="bg-white p-12 rounded-[4rem] shadow-2xl text-center border-b-[12px] border-yellow-400 italic font-black uppercase max-w-sm w-full">
+          <div className="text-5xl mb-6 text-green-500 font-sans">✅</div>
+          <h2 className="text-2xl mb-10">Sucesso!</h2>
+          
+          <div className="flex flex-col gap-4">
+            <button 
+              onClick={() => { setEnviado(false); setView('cadastro'); }} 
+              className="w-full bg-yellow-400 text-zinc-900 py-5 rounded-2xl text-[10px] hover:bg-yellow-500 transition-colors"
+            >
+              📄 Baixar Contrato
+            </button>
+            
+            <button 
+              onClick={() => { setEnviado(false); setView('cadastro'); setContratoAtivo(null); }} 
+              className="w-full bg-zinc-900 text-white py-5 rounded-2xl text-[10px] hover:bg-black transition-colors"
+            >
+              ➕ Novo Cadastro
+            </button>
+
+        
+          </div>
         </div>
       </div>
     );
@@ -160,24 +213,88 @@ function App() {
       {view === 'cadastro' ? (
         <div className="py-12 px-4 max-w-xl mx-auto">
           <div className="bg-white rounded-[4rem] shadow-2xl overflow-hidden border border-zinc-200">
-            <div className="bg-zinc-900 p-12 text-white">
+            <div className="bg-zinc-900 p-12 text-white relative">
+              {/* O NOME SPIN EM CINZA ATRÁS */}
+              <div className="absolute top-0 right-0 p-8 opacity-5 text-8xl font-black italic select-none">SPIN</div>
+              
               <h1 className="text-2xl uppercase tracking-widest text-yellow-400">Transporte VIP</h1>
               <p className="text-zinc-500 text-[10px] uppercase mt-2">Spin Particular</p>
             </div>
+            
             <form onSubmit={handleSubmit} className="p-10 space-y-4">
-              <input required name="nome_aluno" value={formData.nome_aluno} onChange={handleChange} placeholder="Nome do Aluno" className="w-full p-5 bg-zinc-50 border rounded-3xl outline-none" />
+              <input required name="nome_aluno" value={formData.nome_aluno} onChange={handleChange} placeholder="Nome do Aluno" className="w-full p-4 bg-zinc-50 border rounded-3xl outline-none" />
               <div className="grid grid-cols-2 gap-4">
-                <input required name="responsavel" value={formData.responsavel} onChange={handleChange} placeholder="Responsável" className="w-full p-5 bg-zinc-50 border rounded-3xl outline-none" />
-                <input required name="telefone" value={formData.telefone} onChange={handleChange} placeholder="WhatsApp" className="w-full p-5 bg-zinc-50 border rounded-3xl outline-none" />
+                <input required name="responsavel" value={formData.responsavel} onChange={handleChange} placeholder="Responsável" className="w-full p-3 bg-zinc-50 border rounded-3xl outline-none" />
+                <input 
+  type="tel" 
+  required 
+  name="telefone" 
+  value={formData.telefone} 
+  onChange={(e) => {
+    // Máscara simples: (21) 99999-9999
+    let v = e.target.value.replace(/\D/g, "");
+    if (v.length > 11) v = v.slice(0, 11);
+    if (v.length > 2) v = `(${v.slice(0, 2)}) ${v.slice(2)}`;
+    if (v.length > 9) v = `${v.slice(0, 9)}-${v.slice(9)}`;
+    
+    setFormData({ ...formData, telefone: v });
+  }} 
+  placeholder="WhatsApp (DDD + Número)" 
+  className="w-full text-xs bg-zinc-50 border rounded-3xl outline-none italic font-black" 
+/>
               </div>
-              <input required name="endereco_casa" value={formData.endereco_casa} onChange={handleChange} placeholder="Endereço Casa" className="w-full p-5 bg-zinc-50 border rounded-3xl outline-none" />
-              <input required name="endereco_escola" value={formData.endereco_escola} onChange={handleChange} placeholder="Escola / Bairro" className="w-full p-5 bg-zinc-50 border rounded-3xl outline-none" />
-              <input required name="valor_servico" value={formData.valor_servico} onChange={handleChange} placeholder="Valor da Mensalidade" className="w-full p-5 bg-yellow-50 border-yellow-200 border rounded-3xl outline-none font-black" />
+              <input required name="endereco_casa" value={formData.endereco_casa} onChange={handleChange} placeholder="Endereço Casa" className="w-full p-3 bg-zinc-50 border rounded-3xl outline-none" />
+              <input required name="endereco_escola" value={formData.endereco_escola} onChange={handleChange} placeholder="Escola" className="w-full p-3 bg-zinc-50 border rounded-3xl outline-none" />
+              <input 
+  type="tel" // Abre o teclado numérico no iPhone
+  required 
+  name="valor_servico" 
+  value={formData.valor_servico} 
+  onChange={(e) => {
+    // Pega apenas os números digitados
+    let v = e.target.value.replace(/\D/g, "");
+    
+    // Transforma em formato de moeda (R$ 0,00)
+    if (v) {
+      v = (Number(v) / 100).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      });
+    }
+    
+    setFormData({ ...formData, valor_servico: v });
+  }} 
+  placeholder="R$ 0,00" 
+  className="w-full p-4 bg-yellow-50 border-yellow-200 border rounded-3xl outline-none font-black italic" 
+/>
+              
               <div className="grid grid-cols-2 gap-4">
-                <input required name="horario_entrada" value={formData.horario_entrada} onChange={handleTimeChange} placeholder="Entrada" className="p-5 bg-zinc-900 text-white rounded-3xl text-center text-xl" />
-                <input required name="horario_saida" value={formData.horario_saida} onChange={handleTimeChange} placeholder="Saída" className="p-5 bg-zinc-900 text-white rounded-3xl text-center text-xl" />
+  <input 
+    type="tel" // Abre teclado numérico no iPhone
+    required 
+    name="horario_entrada" 
+    value={formData.horario_entrada} 
+    onChange={handleTimeChange} // Mantém sua função que já detecta o turno automaticamente
+    placeholder="Entrada" 
+    className="p-4 bg-zinc-900 text-white rounded-3xl text-center text-sm italic font-black" 
+  />
+  <input 
+    type="tel" // Abre teclado numérico no iPhone
+    required 
+    name="horario_saida" 
+    value={formData.horario_saida} 
+    onChange={handleTimeChange} 
+    placeholder="Saída" 
+    className="p-4 bg-zinc-900 text-white rounded-3xl text-center text-sm italic font-black" 
+  />
+</div>
+              
+              {/* INDICADOR DE TURNO NO FORMULÁRIO */}
+              <div className="text-center text-[10px] text-zinc-400 uppercase tracking-widest pt-2">
+                Turno: {formData.turno || "Aguardando horário..."}
               </div>
-              <button disabled={loading} type="submit" className="w-full bg-zinc-900 text-white py-6 rounded-[2.5rem] uppercase text-[10px]">
+
+              <button disabled={loading} type="submit" className="w-full bg-zinc-900 text-white py-6 rounded-[2.5rem] uppercase text-[10px] mt-4 hover:bg-black transition-all">
                 {loading ? "Gravando..." : editingId ? "Atualizar" : "Finalizar"}
               </button>
             </form>
@@ -198,20 +315,25 @@ function App() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {alunos.map(a => (
-                  <div key={a.nome_aluno} className="bg-white p-10 rounded-[4rem] shadow-sm border border-zinc-200">
+                  <div key={a.nome_aluno} className="bg-white p-10 rounded-[4rem] shadow-sm border border-zinc-200 relative group">
+                    {/* TURNO NO CARD */}
+                    <div className="absolute top-8 right-10 bg-zinc-100 px-4 py-1.5 rounded-full text-[8px] uppercase tracking-widest text-zinc-500">
+                      {a.turno}
+                    </div>
+
                     <h3 className="text-2xl uppercase mb-6 leading-none">{a.nome_aluno}</h3>
                     <div className="space-y-3 text-[11px] text-zinc-400 uppercase mb-8 border-l-4 pl-6">
                       <p className="text-zinc-600">📱 {a.responsavel}: {a.telefone}</p>
                       <p>🏠 {a.endereco_casa}</p>
                       <p>🏫 {a.endereco_escola}</p>
                       <p className="text-yellow-600">💰 Valor: R$ {a.valor_servico}</p>
-                      <p className="text-zinc-900 font-black text-lg mt-4 italic">⏰ {a.horario_entrada}h - {a.horario_saida}h</p>
+                      <p className="text-zinc-900 font-black text-lg mt-4 italic tracking-tight">⏰ {a.horario_entrada}h - {a.horario_saida}h</p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => { setFormData(a); setEditingId(a.nome_aluno); setView('cadastro'); }} className="bg-zinc-50 py-4 rounded-2xl text-[9px] uppercase hover:bg-yellow-400">Editar</button>
-                      <button onClick={() => setContratoAtivo(a)} className="bg-zinc-900 text-white py-4 rounded-2xl text-[9px] uppercase">Contrato</button>
-                      <button onClick={() => enviarMensagemWpp(a)} className="bg-green-500 text-white py-4 rounded-2xl text-[9px] uppercase shadow-md">WhatsApp</button>
-                      <button onClick={() => excluirAluno(a.nome_aluno)} className="bg-zinc-50 py-4 rounded-2xl text-[9px] uppercase text-red-400">Excluir</button>
+                      <button onClick={() => { setFormData(a); setEditingId(a.nome_aluno); setView('cadastro'); }} className="bg-zinc-50 py-4 rounded-2xl text-[9px] uppercase hover:bg-yellow-400 transition-all">Editar</button>
+                      <button onClick={() => setContratoAtivo(a)} className="bg-zinc-900 text-white py-4 rounded-2xl text-[9px] uppercase hover:bg-zinc-700">Contrato</button>
+                      <button onClick={() => enviarMensagemWpp(a)} className="bg-green-500 text-white py-4 rounded-2xl text-[9px] uppercase shadow-md hover:bg-green-600">WhatsApp</button>
+                      <button onClick={() => excluirAluno(a.nome_aluno)} className="bg-zinc-50 py-4 rounded-2xl text-[9px] uppercase text-red-400 hover:bg-red-50">Excluir</button>
                     </div>
                   </div>
                 ))}
