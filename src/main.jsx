@@ -264,7 +264,7 @@ function App() {
     
     setFormData({ ...formData, valor_servico: v });
   }} 
-  placeholder="R$ 0,00" 
+  placeholder="Valor serviço = R$ 0,00" 
   className="w-full p-4 bg-yellow-50 border-yellow-200 border rounded-3xl outline-none font-black italic" 
 />
               
