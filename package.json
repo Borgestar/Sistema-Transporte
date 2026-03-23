@@ -2,7 +2,7 @@
   "name": "sistema-transporte",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://borgestar.github.io/Sistema-Transporte", 
+  "homepage": "https://borgestar.github.io/Sistema-Transporte",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,12 +11,13 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
-  
   "dependencies": {
     "@supabase/supabase-js": "^2.93.3",
     "@tailwindcss/vite": "^4.1.18",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.13.1",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
